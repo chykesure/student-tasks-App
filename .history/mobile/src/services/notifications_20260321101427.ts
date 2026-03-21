@@ -8,24 +8,11 @@ const MIN_FUTURE_MS = 10 * 1000; // 10 seconds
 
 // Configure how notifications should be handled when received
 Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    // Example: suppress sound/banner for certain types
-    if (notification.request.content.data?.type === 'silent') {
-      return {
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: false,
-        shouldShowList: false,
-      };
-    }
-
-    return {
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
 });
 
 /**
@@ -95,7 +82,7 @@ export const scheduleTaskNotification = async (task: Task): Promise<string | nul
 
       // Optional: Fire immediate notification if very close or just missed
       // Uncomment if you want "due now" alerts even for past/very near times
-      
+      /*
       if (notificationTime.getTime() > now - 5 * 60 * 1000) { // within last 5 minutes
         await Notifications.scheduleNotificationAsync({
           identifier: `immediate-${task._id}`,
@@ -109,6 +96,7 @@ export const scheduleTaskNotification = async (task: Task): Promise<string | nul
           trigger: null, // immediate
         });
       }
+      */
 
       await cancelTaskNotification(task._id); // clean up any stale notification
       return null;

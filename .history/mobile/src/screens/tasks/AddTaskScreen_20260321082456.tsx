@@ -1,4 +1,3 @@
-//mobile/src/screens/tasks/AddTaskScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -173,7 +172,7 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
                 onPress={() => setCategory(key as TaskCategory)}
               >
                 <MaterialCommunityIcons
-                  name={value.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                  name={value.icon}
                   size={18}
                   color={category === key ? value.color : COLORS.textLight}
                 />

@@ -1,4 +1,3 @@
-//mobile/src/screens/main/DashboardScreen.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,

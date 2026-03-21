@@ -1,4 +1,4 @@
-//mobile/src/screens/tasks/AddTaskScreen.tsx
+//mobile
 import React, { useState } from 'react';
 import {
   View,

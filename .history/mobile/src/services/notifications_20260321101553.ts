@@ -95,7 +95,7 @@ export const scheduleTaskNotification = async (task: Task): Promise<string | nul
 
       // Optional: Fire immediate notification if very close or just missed
       // Uncomment if you want "due now" alerts even for past/very near times
-      
+      /*
       if (notificationTime.getTime() > now - 5 * 60 * 1000) { // within last 5 minutes
         await Notifications.scheduleNotificationAsync({
           identifier: `immediate-${task._id}`,
@@ -109,6 +109,7 @@ export const scheduleTaskNotification = async (task: Task): Promise<string | nul
           trigger: null, // immediate
         });
       }
+      */
 
       await cancelTaskNotification(task._id); // clean up any stale notification
       return null;

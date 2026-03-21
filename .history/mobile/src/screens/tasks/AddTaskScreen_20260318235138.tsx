@@ -1,4 +1,3 @@
-//mobile/src/screens/tasks/AddTaskScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -7,17 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Platform,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Button, Input, Loading } from '../../components';
 import { COLORS, TASK_CATEGORIES, TASK_PRIORITIES, REMINDER_OPTIONS } from '../../constants';
 import { MainStackParamList, TaskCategory, TaskPriority } from '../../types';
 import { tasksAPI } from '../../services/api';
 import { scheduleTaskNotification } from '../../services/notifications';
+import { formatDateForInput } from '../../utils/helpers';
 
 type AddTaskNavigationProp = NativeStackNavigationProp<MainStackParamList, 'AddTask'>;
 
@@ -27,103 +27,74 @@ interface AddTaskScreenProps {
 
 interface FormErrors {
   title?: string;
-  dueDateTime?: string;
+  dueDate?: string;
 }
 
 const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [category, setCategory] = useState<TaskCategory>('other');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-
-  const defaultDue = new Date();
-  defaultDue.setHours(9, 0, 0, 0);
-
-  const [dueDateTime, setDueDateTime] = useState<Date>(defaultDue);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-
-  const [reminderMinutes, setReminderMinutes] = useState(15);
-  const [tags, setTags] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [dueDate, setDueDate] = useState<string>(formatDateForInput(new Date()));
+  const [dueTime, setDueTime] = useState<string>('09:00');
+  const [reminderMinutes, setReminderMinutes] = useState<number>(15);
+  const [tags, setTags] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
   const categories = Object.entries(TASK_CATEGORIES);
   const priorities = Object.entries(TASK_PRIORITIES);
 
-  const formatDate = (date: Date): string => {
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (date: Date): string => {
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
-
+    
     if (!title.trim()) {
       newErrors.title = 'Task title is required';
     }
-
-    if (dueDateTime < new Date()) {
-      newErrors.dueDateTime = 'Due date/time must be in the future';
+    
+    if (!dueDate) {
+      newErrors.dueDate = 'Due date is required';
     }
-
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     if (!validateForm()) return;
-
+    
     setLoading(true);
-
+    
     try {
       const taskData = {
         title: title.trim(),
         description: description.trim(),
         category,
         priority,
-        dueDate: dueDateTime.toISOString(),
+        dueDate: new Date(dueDate),
+        dueTime,
         reminderMinutes,
         tags: tags.trim() ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
       };
 
       const response = await tasksAPI.create(taskData);
-
+      
       if (response.success && response.data) {
+        // Schedule notification
         await scheduleTaskNotification(response.data.task);
-
-        Alert.alert('Success', 'Task created successfully!', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+        
+        Alert.alert(
+          'Success',
+          'Task created successfully!',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
       }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create task');
+    } catch (error) {
+      const err = error as { message?: string };
+      Alert.alert('Error', err.message || 'Failed to create task');
     } finally {
       setLoading(false);
     }
-  };
-
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    const currentDate = selectedDate || dueDateTime;
-    setShowDatePicker(Platform.OS === 'ios');
-    setDueDateTime(currentDate);
-  };
-
-  const onTimeChange = (event: any, selectedTime?: Date) => {
-    const currentTime = selectedTime || dueDateTime;
-    setShowTimePicker(Platform.OS === 'ios');
-    setDueDateTime(currentTime);
   };
 
   if (loading) {
@@ -131,16 +102,23 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+    <SafeAreaView style={addTaskStyles.container}>
+      <View style={addTaskStyles.header}>
+        <TouchableOpacity
+          style={addTaskStyles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <Ionicons name="close" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add New Task</Text>
+        <Text style={addTaskStyles.headerTitle}>Add New Task</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={addTaskStyles.scrollContent}
+      >
+        {/* Title */}
         <Input
           label="Task Title"
           value={title}
@@ -150,6 +128,7 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
           required
         />
 
+        {/* Description */}
         <Input
           label="Description"
           value={description}
@@ -159,16 +138,16 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
           numberOfLines={3}
         />
 
-        {/* Category */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Category</Text>
-          <View style={styles.optionsGrid}>
+        {/* Category Selection */}
+        <View style={addTaskStyles.section}>
+          <Text style={addTaskStyles.sectionLabel}>Category</Text>
+          <View style={addTaskStyles.optionsGrid}>
             {categories.map(([key, value]) => (
               <TouchableOpacity
                 key={key}
                 style={[
-                  styles.optionChip,
-                  category === key && { borderColor: value.color, backgroundColor: `${value.color}15` },
+                  addTaskStyles.optionChip,
+                  category === key && { borderColor: value.color, backgroundColor: value.color + '15' },
                 ]}
                 onPress={() => setCategory(key as TaskCategory)}
               >
@@ -177,12 +156,10 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
                   size={18}
                   color={category === key ? value.color : COLORS.textLight}
                 />
-                <Text
-                  style={[
-                    styles.optionText,
-                    category === key && { color: value.color },
-                  ]}
-                >
+                <Text style={[
+                  addTaskStyles.optionText,
+                  category === key && { color: value.color },
+                ]}>
                   {value.label}
                 </Text>
               </TouchableOpacity>
@@ -190,25 +167,23 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Priority */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Priority</Text>
-          <View style={styles.optionsRow}>
+        {/* Priority Selection */}
+        <View style={addTaskStyles.section}>
+          <Text style={addTaskStyles.sectionLabel}>Priority</Text>
+          <View style={addTaskStyles.optionsRow}>
             {priorities.map(([key, value]) => (
               <TouchableOpacity
                 key={key}
                 style={[
-                  styles.priorityChip,
-                  priority === key && { borderColor: value.color, backgroundColor: `${value.color}15` },
+                  addTaskStyles.priorityChip,
+                  priority === key && { borderColor: value.color, backgroundColor: value.color + '15' },
                 ]}
                 onPress={() => setPriority(key as TaskPriority)}
               >
-                <Text
-                  style={[
-                    styles.priorityText,
-                    priority === key && { color: value.color },
-                  ]}
-                >
+                <Text style={[
+                  addTaskStyles.priorityText,
+                  priority === key && { color: value.color },
+                ]}>
                   {value.label}
                 </Text>
               </TouchableOpacity>
@@ -216,77 +191,39 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Due Date & Time */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Due Date & Time</Text>
-
-          {errors.dueDateTime && (
-            <Text style={styles.errorText}>{errors.dueDateTime}</Text>
-          )}
-
-          <View style={styles.dateTimeRow}>
-            <TouchableOpacity
-              style={[
-                styles.dateTimePicker,
-                errors.dueDateTime && styles.inputError,
-              ]}
-              onPress={() => setShowDatePicker(true)}
-            >
+        {/* Date & Time */}
+        <View style={addTaskStyles.section}>
+          <Text style={addTaskStyles.sectionLabel}>Due Date & Time</Text>
+          <View style={addTaskStyles.dateTimeRow}>
+            <TouchableOpacity style={addTaskStyles.dateTimePicker}>
               <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
-              <Text style={styles.dateTimeText}>{formatDate(dueDateTime)}</Text>
+              <Text style={addTaskStyles.dateTimeText}>{dueDate}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.dateTimePicker,
-                errors.dueDateTime && styles.inputError,
-              ]}
-              onPress={() => setShowTimePicker(true)}
-            >
+            
+            <TouchableOpacity style={addTaskStyles.dateTimePicker}>
               <Ionicons name="time-outline" size={20} color={COLORS.primary} />
-              <Text style={styles.dateTimeText}>{formatTime(dueDateTime)}</Text>
+              <Text style={addTaskStyles.dateTimeText}>{dueTime}</Text>
             </TouchableOpacity>
           </View>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={dueDateTime}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              onChange={onDateChange}
-              minimumDate={new Date()}
-            />
-          )}
-
-          {showTimePicker && (
-            <DateTimePicker
-              value={dueDateTime}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onTimeChange}
-            />
-          )}
         </View>
 
         {/* Reminder */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Reminder</Text>
-          <View style={styles.reminderOptions}>
-            {REMINDER_OPTIONS.slice(0, 4).map(option => (
+        <View style={addTaskStyles.section}>
+          <Text style={addTaskStyles.sectionLabel}>Reminder</Text>
+          <View style={addTaskStyles.reminderOptions}>
+            {REMINDER_OPTIONS.slice(0, 4).map((option) => (
               <TouchableOpacity
                 key={option.value}
                 style={[
-                  styles.reminderChip,
-                  reminderMinutes === option.value && styles.reminderChipActive,
+                  addTaskStyles.reminderChip,
+                  reminderMinutes === option.value && addTaskStyles.reminderChipActive,
                 ]}
                 onPress={() => setReminderMinutes(option.value)}
               >
-                <Text
-                  style={[
-                    styles.reminderText,
-                    reminderMinutes === option.value && styles.reminderTextActive,
-                  ]}
-                >
+                <Text style={[
+                  addTaskStyles.reminderText,
+                  reminderMinutes === option.value && addTaskStyles.reminderTextActive,
+                ]}>
                   {option.label}
                 </Text>
               </TouchableOpacity>
@@ -294,6 +231,7 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Tags */}
         <Input
           label="Tags (comma separated)"
           value={tags}
@@ -302,7 +240,8 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
           helperText="Add tags to organize your tasks"
         />
 
-        <View style={styles.submitContainer}>
+        {/* Submit Button */}
+        <View style={addTaskStyles.submitContainer}>
           <Button
             title="Create Task"
             onPress={handleSubmit}
@@ -316,11 +255,11 @@ const AddTaskScreen: React.FC<AddTaskScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const addTaskStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
+  } as ViewStyle,
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -329,7 +268,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-  },
+  } as ViewStyle,
   backButton: {
     width: 40,
     height: 40,
@@ -337,30 +276,30 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-  },
+  } as ViewStyle,
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
-  },
+  } as TextStyle,
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
-  },
+  } as ViewStyle,
   section: {
-    marginBottom: 24,
-  },
+    marginBottom: 20,
+  } as ViewStyle,
   sectionLabel: {
     fontSize: 14,
     fontWeight: '500',
     color: COLORS.text,
     marginBottom: 12,
-  },
+  } as TextStyle,
   optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-  },
+  } as ViewStyle,
   optionChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -370,16 +309,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
-  },
+  } as ViewStyle,
   optionText: {
     fontSize: 14,
     color: COLORS.textLight,
     marginLeft: 6,
-  },
+  } as TextStyle,
   optionsRow: {
     flexDirection: 'row',
     gap: 10,
-  },
+  } as ViewStyle,
   priorityChip: {
     flex: 1,
     alignItems: 'center',
@@ -388,16 +327,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
-  },
+  } as ViewStyle,
   priorityText: {
     fontSize: 14,
     fontWeight: '500',
     color: COLORS.textLight,
-  },
+  } as TextStyle,
   dateTimeRow: {
     flexDirection: 'row',
     gap: 12,
-  },
+  } as ViewStyle,
   dateTimePicker: {
     flex: 1,
     flexDirection: 'row',
@@ -407,26 +346,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-  },
+  } as ViewStyle,
   dateTimeText: {
     fontSize: 15,
     color: COLORS.text,
     marginLeft: 10,
-    flex: 1,
-  },
-  inputError: {
-    borderColor: COLORS.error || '#ff3b30',
-  },
-  errorText: {
-    color: COLORS.error || '#ff3b30',
-    fontSize: 12,
-    marginBottom: 8,
-  },
+  } as TextStyle,
   reminderOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-  },
+  } as ViewStyle,
   reminderChip: {
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -434,22 +364,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
-  },
+  } as ViewStyle,
   reminderChipActive: {
     borderColor: COLORS.primary,
-    backgroundColor: `${COLORS.primary}15`,
-  },
+    backgroundColor: COLORS.primary + '15',
+  } as ViewStyle,
   reminderText: {
     fontSize: 13,
     color: COLORS.textLight,
-  },
+  } as TextStyle,
   reminderTextActive: {
     color: COLORS.primary,
     fontWeight: '500',
-  },
+  } as TextStyle,
   submitContainer: {
-    marginTop: 28,
-  },
+    marginTop: 24,
+  } as ViewStyle,
 });
 
 export default AddTaskScreen;
